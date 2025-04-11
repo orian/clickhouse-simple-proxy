@@ -1,0 +1,62 @@
+<clickhouse>
+    <logger>
+        <level>information</level>
+        <log>/var/log/clickhouse-server/clickhouse-server.log</log>
+        <errorlog>/var/log/clickhouse-server/clickhouse-server.err.log</errorlog>
+        <size>1000M</size>
+        <count>10</count>
+    </logger>
+
+    <!-- Listen on all interfaces -->
+    <listen_host>::</listen_host>
+    <listen_host>0.0.0.0</listen_host>
+
+    <http_port>8123</http_port>
+    <tcp_port>9000</tcp_port>
+
+    <!-- For inter-server communication -->
+    <interserver_http_port>9009</interserver_http_port>
+
+    <max_connections>4096</max_connections>
+    <keep_alive_timeout>10</keep_alive_timeout>
+    <max_concurrent_queries>100</max_concurrent_queries> <!-- Adjust as needed for testing slowdown -->
+    <max_server_memory_usage>0</max_server_memory_usage> <!-- No limit for testing -->
+    <max_thread_pool_size>10000</max_thread_pool_size>
+
+    <remote_servers incl="metrika" optional="true" />
+
+    <zookeeper incl="zookeeper-servers" optional="true" />
+
+    <macros incl="macros" optional="true" />
+
+    <!-- Default profile/user settings -->
+    <profiles>
+        <default>
+            <max_memory_usage>10000000000</max_memory_usage>
+            <use_uncompressed_cache>0</use_uncompressed_cache>
+            <load_balancing>random</load_balancing>
+        </default>
+    </profiles>
+
+    <users_config>users.xml</users_config>
+
+    <path>/var/lib/clickhouse/</path>
+    <tmp_path>/var/lib/clickhouse/tmp/</tmp_path>
+    <user_files_path>/var/lib/clickhouse/user_files/</user_files_path>
+
+    <builtin_dictionaries_reload_interval>3600</builtin_dictionaries_reload_interval>
+
+    <query_log>
+        <database>system</database>
+        <table>query_log</table>
+        <partition_by>toYYYYMM(event_date)</partition_by>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </query_log>
+
+    <query_thread_log>
+        <database>system</database>
+        <table>query_thread_log</table>
+        <partition_by>toYYYYMM(event_date)</partition_by>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </query_thread_log>
+</clickhouse>

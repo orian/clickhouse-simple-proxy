@@ -1,0 +1,35 @@
+<clickhouse>
+    <profiles>
+        <default>
+            <!-- Settings for the default profile -->
+        </default>
+        <readonly>
+            <readonly>1</readonly>
+        </readonly>
+    </profiles>
+
+    <users>
+        <default>
+            <password></password> <!-- No password for default user -->
+            <profile>default</profile>
+            <networks>
+                <ip>::/0</ip> <!-- Allow connections from any IPv6 address -->
+                <ip>0.0.0.0/0</ip> <!-- Allow connections from any IPv4 address -->
+            </networks>
+            <quota>default</quota>
+        </default>
+    </users>
+
+    <quotas>
+        <default>
+            <interval>
+                <duration>3600</duration>
+                <queries>0</queries>
+                <errors>0</errors>
+                <result_rows>0</result_rows>
+                <read_rows>0</read_rows>
+                <execution_time>0</execution_time>
+            </interval>
+        </default>
+    </quotas>
+</clickhouse>

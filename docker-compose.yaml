@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  clickhouse-01:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse-01
+    hostname: clickhouse-01
+    ports:
+      - "8123:8123" # HTTP port for node 1
+      - "9000:9000" # Native TCP port for node 1
+    volumes:
+      - ./docker/clickhouse/config.xml:/etc/clickhouse-server/config.xml
+      - ./docker/clickhouse/users.xml:/etc/clickhouse-server/users.xml
+      - ./docker/clickhouse/metrika.xml:/etc/clickhouse-server/config.d/metrika.xml # Cluster definition
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  clickhouse-02:
+    image: clickhouse/clickhouse-server:latest
+    container_name: clickhouse-02
+    hostname: clickhouse-02
+    ports:
+      - "8124:8123" # HTTP port for node 2 (mapped to different host port)
+      - "9001:9000" # Native TCP port for node 2 (mapped to different host port)
+    volumes:
+      - ./docker/clickhouse/config.xml:/etc/clickhouse-server/config.xml
+      - ./docker/clickhouse/users.xml:/etc/clickhouse-server/users.xml
+      - ./docker/clickhouse/metrika.xml:/etc/clickhouse-server/config.d/metrika.xml # Cluster definition
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  default:
+    driver: bridge
