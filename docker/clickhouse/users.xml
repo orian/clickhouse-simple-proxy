@@ -1,7 +1,9 @@
 <clickhouse>
     <profiles>
         <default>
-            <!-- Settings for the default profile -->
+            <max_memory_usage>1000000000</max_memory_usage>
+            <use_uncompressed_cache>0</use_uncompressed_cache>
+            <load_balancing>random</load_balancing>
         </default>
         <readonly>
             <readonly>1</readonly>
@@ -10,13 +12,14 @@
 
     <users>
         <default>
-            <password></password> <!-- No password for default user -->
+            <password>clickhouse</password>
             <profile>default</profile>
             <networks>
                 <ip>::/0</ip> <!-- Allow connections from any IPv6 address -->
                 <ip>0.0.0.0/0</ip> <!-- Allow connections from any IPv4 address -->
             </networks>
             <quota>default</quota>
+            <access_management>1</access_management>
         </default>
     </users>
 
