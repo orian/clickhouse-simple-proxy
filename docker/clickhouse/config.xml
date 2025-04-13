@@ -23,7 +23,7 @@
     <max_server_memory_usage>0</max_server_memory_usage> <!-- No limit for testing -->
     <max_thread_pool_size>10000</max_thread_pool_size>
 
-    <remote_servers incl="metrika" optional="true" />
+    <remote_servers incl="cluster.xml" optional="true" />
 
     <zookeeper incl="zookeeper-servers" optional="true" />
 
@@ -70,4 +70,12 @@
         <partition_by>toYYYYMM(event_date)</partition_by>
         <flush_interval_milliseconds>7500</flush_interval_milliseconds>
     </query_thread_log>
+
+    <prometheus>
+        <endpoint>/metrics</endpoint>
+        <port>9363</port>
+        <metrics>true</metrics>
+        <events>true</events>
+        <asynchronous_metrics>true</asynchronous_metrics>
+    </prometheus>
 </clickhouse>

@@ -4,8 +4,8 @@ max_concurrent: 3             # Max simultaneous queries per X-User-Id
 max_queue: 10                 # Max queued queries per X-User-Id
 queue_timeout: 60s            # Max time to wait in queue
 replicas:
-  - "clickhouse-node1:8123"   # Your ClickHouse nodes
-  - "clickhouse-node2:8123"
+  - "clickhouse-clickhouse-01:8123"   # Your ClickHouse nodes
+  - "clickhouse-clickhouse-02:8123"
 replica_scheme: "http"        # Or "https" if needed
 # --- Slowdown Trigger ---
 # Option 1: Specific error message substring
