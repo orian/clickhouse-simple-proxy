@@ -1,0 +1,12 @@
+<clickhouse>
+    <keeper>
+        <node index="1">
+            <host>clickhouse-01</host>
+            <port>2181</port>
+        </node>
+        <node index="2">
+            <host>clickhouse-02</host>
+            <port>2181</port>
+        </node>
+    </keeper>
+</clickhouse> 

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -69,6 +70,7 @@ func (p *SimpleProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// 1. Get Group Key
 	groupKey := r.Header.Get(p.config.HeaderName)
 	if groupKey == "" {
+		slog.Debug("Missing header", "header", p.config.HeaderName)
 		http.Error(rw, fmt.Sprintf("Missing header: %s", p.config.HeaderName), http.StatusBadRequest)
 		return
 	}

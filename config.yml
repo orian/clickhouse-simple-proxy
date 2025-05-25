@@ -1,4 +1,4 @@
-listen_addr: ":8124"          # Address the proxy listens on
+listen_addr: ":18123"          # Address the proxy listens on
 header_name: "X-User-Id"      # Header to group by
 max_concurrent: 3             # Max simultaneous queries per X-User-Id
 max_queue: 10                 # Max queued queries per X-User-Id

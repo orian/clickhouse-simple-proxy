@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/url"
 	"sync"
-	"time"
 
 	"golang.org/x/time/rate"
 )

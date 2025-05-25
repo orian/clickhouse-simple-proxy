@@ -9,11 +9,11 @@ import (
 	"os"
 	"time"
 
-	"gopkg.in/yaml.v2" // Example using YAML, adjust as needed
+	"gopkg.in/yaml.v3" // Example using YAML, adjust as needed
 )
 
 func main() {
-	configPath := flag.String("config", "config.yaml", "Path to config file")
+	configPath := flag.String("config", "config.yml", "Path to config file")
 	flag.Parse()
 	configData, err := os.ReadFile(*configPath)
 	if err != nil {
