@@ -1,6 +1,6 @@
 services:
   clickhouse-01:
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server:25.5.1
     container_name: clickhouse-01
     hostname: clickhouse-01
     ports:
@@ -31,7 +31,7 @@ services:
       retries: 3
 
   clickhouse-02:
-    image: clickhouse/clickhouse-server:latest
+    image: clickhouse/clickhouse-server:25.5.1
     container_name: clickhouse-02
     hostname: clickhouse-02
     ports:
