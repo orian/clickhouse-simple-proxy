@@ -3,9 +3,24 @@ header_name: "X-User-Id"      # Header to group by
 max_concurrent: 3             # Max simultaneous queries per X-User-Id
 max_queue: 10                 # Max queued queries per X-User-Id
 queue_timeout: 60s            # Max time to wait in queue
+shards:
+  - name: "1"
+    labels:
+      single: true
 replicas:
-  - "10.5.0.2:8123"   # Your ClickHouse nodes
-  - "10.5.0.3:8123"
+  - name: "primary"
+    labels:
+      workload: online
+  - name: "secondary"
+    labels:
+      workload: offline
+nodes:
+  - shard: "1"
+    replica: "primary"
+    address: "10.5.0.2:8123"
+  - shard: "1"
+    replica: "secondary"
+    address: "10.5.0.3:8123"
 replica_scheme: "http"        # Or "https" if needed
 # --- Slowdown Trigger ---
 # Option 1: Specific error message substring
@@ -18,3 +33,4 @@ slowdown_burst: 1             # Allow burst of 1
 
 proxy_timeout: 120s           # Timeout for requests to backend replicas
 user_agent: "SimpleClickHouseProxy/1.0"
+version: "1.0"

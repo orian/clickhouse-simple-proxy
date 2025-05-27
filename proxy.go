@@ -3,6 +3,7 @@ package main
 
 import (
 	"bytes"
+	config2 "clickhouse-test/config"
 	"context"
 	"errors"
 	"fmt"
@@ -19,8 +20,8 @@ import (
 )
 
 type SimpleProxy struct {
-	config        *Config
-	replicas      []*Replica
+	config        *config2.Config
+	replicas      []*config2.Replica
 	nextReplica   uint32       // For simple round-robin
 	groupLimiters sync.Map     // map[string]*GroupLimiter
 	httpClient    *http.Client // For the reverse proxy transport
@@ -43,23 +44,23 @@ func GetGroupKey(ctx context.Context) string {
 	return ""
 }
 
-func WithReplica(ctx context.Context, replica *Replica) context.Context {
+func WithReplica(ctx context.Context, replica *config2.Replica) context.Context {
 	return context.WithValue(ctx, &replicaCtxKey, replica)
 }
 
-func GetReplica(ctx context.Context) *Replica {
-	if replica, ok := ctx.Value(&replicaCtxKey).(*Replica); ok {
+func GetReplica(ctx context.Context) *config2.Replica {
+	if replica, ok := ctx.Value(&replicaCtxKey).(*config2.Replica); ok {
 		return replica
 	}
 	return nil
 }
 
-func NewSimpleProxy(cfg *Config) (*SimpleProxy, error) {
+func NewSimpleProxy(cfg *config2.Config) (*SimpleProxy, error) {
 	if cfg.HeaderName == "" || len(cfg.Replicas) == 0 {
 		return nil, errors.New("header_name and replicas are required")
 	}
 
-	replicas := make([]*Replica, 0, len(cfg.Replicas))
+	replicas := make([]*config2.Replica, 0, len(cfg.Replicas))
 	for _, addr := range cfg.Replicas {
 		r, err := NewReplica(addr, cfg.ReplicaScheme, cfg.SlowdownRate, cfg.SlowdownBurst)
 		if err != nil {
@@ -247,7 +248,7 @@ func (p *SimpleProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 }
 
 // selectReplica implements simple round-robin. NEEDS HEALTH CHECKS.
-func (p *SimpleProxy) selectReplica() *Replica {
+func (p *SimpleProxy) selectReplica() *config2.Replica {
 	numReplicas := uint32(len(p.replicas))
 	if numReplicas == 0 {
 		return nil

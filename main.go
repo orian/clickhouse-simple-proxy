@@ -2,6 +2,7 @@
 package main
 
 import (
+	"clickhouse-test/config"
 	"errors"
 	"flag"
 	"log"
@@ -21,7 +22,7 @@ func main() {
 	}
 
 	// Set defaults
-	cfg := Config{
+	cfg := config.Config{
 		ReplicaScheme: "http",
 		QueueTimeout:  10 * time.Second,
 		SlowdownRate:  1.0,
