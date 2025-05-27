@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	configPath := flag.String("config", "config.yml", "Path to config file")
+	configPath := flag.String("config", "config/config.yml", "Path to config file")
 	flag.Parse()
 	configData, err := os.ReadFile(*configPath)
 	if err != nil {

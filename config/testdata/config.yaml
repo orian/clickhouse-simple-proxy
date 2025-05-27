@@ -1,0 +1,23 @@
+listen_addr: ":8123"
+header_name: "X-User-Id"
+max_concurrent: 10
+max_queue: 100
+queue_timeout: 5s
+replicas:
+  - labels:
+      region: us-east
+    shards:
+      - "ch1:8123"
+      - "ch2:8123"
+  - labels:
+      region: us-west
+    shards:
+      - "ch3:8123"
+replica_scheme: "http"
+slowdown_error: "Too many simultaneous queries"
+slowdown_code: 503
+slowdown_rate: 10.5
+slowdown_burst: 5
+proxy_timeout: 30s
+user_agent: "clickhouse-proxy/1.0"
+version: "1.0" 

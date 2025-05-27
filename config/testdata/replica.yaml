@@ -1,0 +1,6 @@
+labels:
+  region: us-east
+  datacenter: dc1
+shards:
+  - "ch1:8123"
+  - "ch2:8123" 
