@@ -19,6 +19,9 @@ services:
       - ./docker/clickhouse/keeper.xml:/etc/clickhouse-server/config.d/keeper.xml
       - clickhouse-01-data:/var/lib/clickhouse
       - clickhouse-01-logs:/var/log/clickhouse-server
+    networks:
+      chproxy:
+        ipv4_address: 10.5.0.2
     ulimits:
       nofile:
         soft: 262144
@@ -50,6 +53,9 @@ services:
       - ./docker/clickhouse/keeper.xml:/etc/clickhouse-server/config.d/keeper.xml
       - clickhouse-02-data:/var/lib/clickhouse
       - clickhouse-02-logs:/var/log/clickhouse-server
+    networks:
+      chproxy:
+        ipv4_address: 10.5.0.3
     ulimits:
       nofile:
         soft: 262144
@@ -69,5 +75,9 @@ volumes:
   clickhouse-02-logs:
 
 networks:
-  default:
+  chproxy:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 10.5.0.0/16
+          gateway: 10.5.0.1

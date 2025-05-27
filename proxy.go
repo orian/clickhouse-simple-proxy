@@ -24,6 +24,34 @@ type SimpleProxy struct {
 	nextReplica   uint32       // For simple round-robin
 	groupLimiters sync.Map     // map[string]*GroupLimiter
 	httpClient    *http.Client // For the reverse proxy transport
+	reverseProxy  *httputil.ReverseProxy
+}
+
+var (
+	replicaCtxKey = "replica"
+	groupCtxKey   = "group"
+)
+
+func WithGroupKey(ctx context.Context, groupKey string) context.Context {
+	return context.WithValue(ctx, &groupCtxKey, groupKey)
+}
+
+func GetGroupKey(ctx context.Context) string {
+	if groupKey, ok := ctx.Value(&groupCtxKey).(string); ok {
+		return groupKey
+	}
+	return ""
+}
+
+func WithReplica(ctx context.Context, replica *Replica) context.Context {
+	return context.WithValue(ctx, &replicaCtxKey, replica)
+}
+
+func GetReplica(ctx context.Context) *Replica {
+	if replica, ok := ctx.Value(&replicaCtxKey).(*Replica); ok {
+		return replica
+	}
+	return nil
 }
 
 func NewSimpleProxy(cfg *Config) (*SimpleProxy, error) {
@@ -54,14 +82,108 @@ func NewSimpleProxy(cfg *Config) (*SimpleProxy, error) {
 		log.Printf("Proxy timeout not configured, using default: %s", proxyTimeout)
 	}
 
-	return &SimpleProxy{
+	var p = &SimpleProxy{
 		config:   cfg,
 		replicas: replicas,
 		httpClient: &http.Client{
 			Transport: transport,
 			Timeout:   proxyTimeout,
 		},
-	}, nil
+	}
+
+	reverseProxy := &httputil.ReverseProxy{
+		Director: func(req *http.Request) {
+			replica := GetReplica(req.Context())
+			req.URL.Scheme = replica.URL.Scheme
+			req.URL.Host = replica.URL.Host
+			req.URL.Path = req.URL.Path // Use original path
+			req.Host = replica.URL.Host // Set Host header
+			// Optional: Remove the grouping header
+			req.Header.Del(p.config.HeaderName)
+			if p.config.UserAgent != "" {
+				req.Header.Set("User-Agent", p.config.UserAgent)
+			}
+			req.URL.RawQuery = req.URL.RawQuery
+		},
+		Transport: p.httpClient.Transport,
+		ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {
+			replica := GetReplica(req.Context())
+			groupKey := GetGroupKey(req.Context())
+			log.Printf("Group %q: Proxy error to %s: %v", groupKey, replica.URL.Host, err)
+			// Check for specific errors like context cancellation or timeout
+			statusCode := http.StatusBadGateway
+			// Check if the error is a timeout from the http client
+			var netErr net.Error
+			if errors.As(err, &netErr) && netErr.Timeout() {
+				statusCode = http.StatusGatewayTimeout // More specific error for timeouts
+			} else if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				statusCode = 499 // Client closed request or deadline exceeded before sending
+			}
+			// Ensure header isn't already sent before writing header
+			// (httputil usually handles this, but good practice)
+			if _, ok := w.(http.Hijacker); !ok { // Check if response hasn't been hijacked
+				w.WriteHeader(statusCode)
+			} else {
+				log.Printf("Group %q: Cannot write header for error on hijacked connection to %s", groupKey, replica.URL.Host)
+			}
+		},
+		ModifyResponse: func(resp *http.Response) error {
+			replica := GetReplica(resp.Request.Context())
+			groupKey := GetGroupKey(resp.Request.Context())
+			// TODO modify should not decide on slowing down, it should only put info about the instance state.
+
+			// Check if this response indicates the need to slow down
+			// WARNING: Reading the body is tricky. Best if CH provides a header or specific status code.
+			shouldSlowDown := false
+			if p.config.SlowdownCode > 0 && resp.StatusCode == p.config.SlowdownCode {
+				shouldSlowDown = true
+			}
+
+			// If checking body content is necessary:
+			if !shouldSlowDown && p.config.SlowdownError != "" && (resp.StatusCode >= 500 || resp.StatusCode == http.StatusServiceUnavailable) {
+				// Read body (up to a limit to avoid memory issues)
+				const maxBodyRead = 1 * 1024 * 1024 // 1MB limit
+				bodyBytes, readErr := io.ReadAll(io.LimitReader(resp.Body, maxBodyRead))
+				// Always close the original body reader *after* trying to read
+				if closeErr := resp.Body.Close(); closeErr != nil {
+					log.Printf("Group %q: Error closing original response body from %s: %v", groupKey, replica.URL.Host, closeErr)
+				}
+
+				if readErr == nil {
+					// Restore the body for the client
+					resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+					resp.ContentLength = int64(len(bodyBytes)) // May need adjustment if original was chunked/unknown
+					// Ensure Transfer-Encoding is removed if ContentLength is set.
+					// The Go http server usually handles this, but explicit can be safer.
+					resp.Header.Del("Transfer-Encoding")
+
+					// Check if the error message is present
+					if strings.Contains(string(bodyBytes), p.config.SlowdownError) {
+						shouldSlowDown = true
+					}
+				} else {
+					log.Printf("Group %q: Error reading response body from %s for slowdown check: %v", groupKey, replica.URL.Host, readErr)
+					// Cannot check body, maybe return error to proxy?
+					// If we return an error here, the client gets a generic Bad Gateway.
+					// return fmt.Errorf("failed to read response body: %w", readErr)
+					// If we return nil, the potentially erroneous (but unreadable) response goes to client.
+				}
+			}
+
+			if shouldSlowDown {
+				log.Printf("Group %q: Triggering slowdown for replica %s", groupKey, replica.URL.Host)
+				if replica != nil {
+					replica.SlowDown()
+				}
+			}
+			return nil // Return nil even if slowdown triggered
+		},
+		// Add FlushInterval for streaming responses if needed
+		// FlushInterval: -1, // Use Go's default flushing
+	}
+
+	p.reverseProxy = reverseProxy
+	return p, nil
 }
 
 func (p *SimpleProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -117,92 +239,10 @@ func (p *SimpleProxy) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 6. Setup Reverse Proxy
-	reverseProxy := &httputil.ReverseProxy{
-		Director: func(req *http.Request) {
-			req.URL.Scheme = replica.URL.Scheme
-			req.URL.Host = replica.URL.Host
-			req.URL.Path = r.URL.Path   // Use original path
-			req.Host = replica.URL.Host // Set Host header
-			// Optional: Remove the grouping header
-			req.Header.Del(p.config.HeaderName)
-			if p.config.UserAgent != "" {
-				req.Header.Set("User-Agent", p.config.UserAgent)
-			}
-			req.URL.RawQuery = r.URL.RawQuery
-		},
-		Transport: p.httpClient.Transport,
-		ErrorHandler: func(w http.ResponseWriter, req *http.Request, err error) {
-			log.Printf("Group %q: Proxy error to %s: %v", groupKey, replica.URL.Host, err)
-			// Check for specific errors like context cancellation or timeout
-			statusCode := http.StatusBadGateway
-			// Check if the error is a timeout from the http client
-			var netErr net.Error
-			if errors.As(err, &netErr) && netErr.Timeout() {
-				statusCode = http.StatusGatewayTimeout // More specific error for timeouts
-			} else if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				statusCode = 499 // Client closed request or deadline exceeded before sending
-			}
-			// Ensure header isn't already sent before writing header
-			// (httputil usually handles this, but good practice)
-			if _, ok := w.(http.Hijacker); !ok { // Check if response hasn't been hijacked
-				w.WriteHeader(statusCode)
-			} else {
-				log.Printf("Group %q: Cannot write header for error on hijacked connection to %s", groupKey, replica.URL.Host)
-			}
-		},
-		ModifyResponse: func(resp *http.Response) error {
-			// Check if this response indicates the need to slow down
-			// WARNING: Reading the body is tricky. Best if CH provides a header or specific status code.
-			shouldSlowDown := false
-			if p.config.SlowdownCode > 0 && resp.StatusCode == p.config.SlowdownCode {
-				shouldSlowDown = true
-			}
-
-			// If checking body content is necessary:
-			if !shouldSlowDown && p.config.SlowdownError != "" && (resp.StatusCode >= 500 || resp.StatusCode == http.StatusServiceUnavailable) {
-				// Read body (up to a limit to avoid memory issues)
-				const maxBodyRead = 1 * 1024 * 1024 // 1MB limit
-				bodyBytes, readErr := io.ReadAll(io.LimitReader(resp.Body, maxBodyRead))
-				// Always close the original body reader *after* trying to read
-				if closeErr := resp.Body.Close(); closeErr != nil {
-					log.Printf("Group %q: Error closing original response body from %s: %v", groupKey, replica.URL.Host, closeErr)
-				}
-
-				if readErr == nil {
-					// Restore the body for the client
-					resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-					resp.ContentLength = int64(len(bodyBytes)) // May need adjustment if original was chunked/unknown
-					// Ensure Transfer-Encoding is removed if ContentLength is set.
-					// The Go http server usually handles this, but explicit can be safer.
-					resp.Header.Del("Transfer-Encoding")
-
-					// Check if the error message is present
-					if strings.Contains(string(bodyBytes), p.config.SlowdownError) {
-						shouldSlowDown = true
-					}
-				} else {
-					log.Printf("Group %q: Error reading response body from %s for slowdown check: %v", groupKey, replica.URL.Host, readErr)
-					// Cannot check body, maybe return error to proxy?
-					// If we return an error here, the client gets a generic Bad Gateway.
-					// return fmt.Errorf("failed to read response body: %w", readErr)
-					// If we return nil, the potentially erroneous (but unreadable) response goes to client.
-				}
-			}
-
-			if shouldSlowDown {
-				log.Printf("Group %q: Triggering slowdown for replica %s", groupKey, replica.URL.Host)
-				replica.SlowDown()
-			}
-			return nil // Return nil even if slowdown triggered
-		},
-		// Add FlushInterval for streaming responses if needed
-		// FlushInterval: -1, // Use Go's default flushing
-	}
-
 	// 7. Serve the request
 	log.Printf("Group %q: Proxying to %s (Queued/Limited: %t)", groupKey, replica.URL.Host, time.Since(startTime) > 10*time.Millisecond) // Basic indicator if it waited
-	reverseProxy.ServeHTTP(rw, r)
+	newR := r.WithContext(WithReplica(WithGroupKey(r.Context(), groupKey), replica))
+	p.reverseProxy.ServeHTTP(rw, newR)
 	log.Printf("Group %q: Finished request to %s (Duration: %s)", groupKey, replica.URL.Host, time.Since(startTime))
 }
 
