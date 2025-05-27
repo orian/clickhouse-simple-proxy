@@ -1,3 +1,4 @@
+name: chproxy
 services:
   clickhouse-01:
     image: clickhouse/clickhouse-server:25.5.1
@@ -62,7 +63,6 @@ services:
       retries: 3
 
 volumes:
-  clickhouse-keeper-data:
   clickhouse-01-data:
   clickhouse-01-logs:
   clickhouse-02-data:
