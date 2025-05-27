@@ -20,12 +20,13 @@ func main() {
 		log.Fatalf("Error reading config file %s: %v", *configPath, err)
 	}
 
-	var cfg Config
 	// Set defaults
-	cfg.ReplicaScheme = "http"
-	cfg.QueueTimeout = 10 * time.Second
-	cfg.SlowdownRate = 1.0 // 1 req/sec default
-	cfg.SlowdownBurst = 1
+	cfg := Config{
+		ReplicaScheme: "http",
+		QueueTimeout:  10 * time.Second,
+		SlowdownRate:  1.0,
+		SlowdownBurst: 1,
+	}
 
 	err = yaml.Unmarshal(configData, &cfg)
 	if err != nil {
