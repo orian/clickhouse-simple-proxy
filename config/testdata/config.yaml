@@ -1,6 +1,6 @@
 listen_addr: ":8123"
 header_name: "X-User-Id"
-max_concurrent: 10
+max_concurrent: 2
 max_queue: 100
 queue_timeout: 5s
 replicas:
